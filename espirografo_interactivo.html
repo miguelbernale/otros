@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Espirógrafo interactivo</title>
+  <style>
+    :root {
+      --violet: #7c3aed;
+      --violet-dark: #6d28d9;
+      --slate-900: #0f172a;
+      --slate-700: #334155;
+      --slate-600: #475569;
+      --slate-500: #64748b;
+      --slate-300: #cbd5e1;
+      --slate-100: #f1f5f9;
+      --white: #fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--slate-900);
+      background: linear-gradient(135deg, #f8fafc, #fff 48%, #f5f3ff);
+    }
+    button, input { font: inherit; }
+    .app { max-width: 1280px; margin: 0 auto; padding: 24px; }
+    header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+    .logo {
+      display: grid; place-items: center; width: 52px; height: 52px; border-radius: 18px;
+      color: white; background: var(--violet); font-size: 27px; box-shadow: 0 10px 25px #ddd6fe;
+    }
+    h1 { margin: 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.035em; }
+    header p { margin: 4px 0 0; color: var(--slate-600); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; }
+    .card { background: white; border-radius: 26px; box-shadow: 0 18px 40px rgba(148,163,184,.22); }
+    .drawing-card { padding: 18px; }
+    .stage {
+      position: relative; width: 100%; height: 58vh; min-height: 430px; overflow: hidden;
+      border-radius: 20px; background: radial-gradient(circle at center, #fff, #f8fafc);
+    }
+    canvas { display: block; width: 100%; height: 100%; }
+    .legend {
+      position: absolute; left: 16px; top: 16px; padding: 10px 12px; border-radius: 12px;
+      background: rgba(255,255,255,.92); font-size: 12px; line-height: 1.8; box-shadow: 0 4px 14px rgba(15,23,42,.08);
+    }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 5px; }
+    .hint {
+      position: absolute; inset-inline: 0; bottom: 20px; display: flex; justify-content: center; pointer-events: none;
+    }
+    .hint span { padding: 9px 15px; border-radius: 999px; color: white; background: rgba(15,23,42,.82); font-size: 14px; font-weight: 700; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 16px; }
+    .btn {
+      border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 14px; background: white;
+      color: var(--slate-900); font-weight: 750; cursor: pointer; transition: transform .15s, background .15s;
+    }
+    .btn:hover { transform: translateY(-1px); background: #f8fafc; }
+    .btn.primary { border-color: var(--violet); color: white; background: var(--violet); }
+    .btn.primary:hover { background: var(--violet-dark); }
+    .toggle { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; cursor: pointer; }
+    .toggle input { accent-color: var(--violet); }
+    .progress { height: 8px; margin-top: 13px; overflow: hidden; border-radius: 999px; background: var(--slate-100); }
+    .progress > div { width: 0; height: 100%; border-radius: inherit; background: var(--violet); transition: width .08s linear; }
+    .sidebar { display: grid; gap: 20px; align-content: start; }
+    .controls, .explanation { padding: 24px; }
+    h2 { margin: 0; font-size: 20px; }
+    .sub { margin: 4px 0 20px; color: var(--slate-500); font-size: 14px; }
+    .control { margin-top: 20px; }
+    .control-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .control label, .control-title { font-size: 14px; font-weight: 750; }
+    .help { margin-top: 2px; color: var(--slate-500); font-size: 12px; }
+    .value { min-width: 64px; padding: 5px 8px; border-radius: 9px; text-align: center; background: var(--slate-100); color: var(--slate-700); font-size: 14px; font-weight: 800; }
+    input[type="range"] { width: 100%; margin: 10px 0 0; accent-color: var(--violet); cursor: pointer; }
+    .speed-marks { display: flex; justify-content: space-between; color: #94a3b8; font-size: 10px; font-weight: 750; }
+    .colors { display: flex; gap: 10px; margin-top: 10px; }
+    .color {
+      width: 32px; height: 32px; padding: 0; border: 3px solid white; border-radius: 50%; cursor: pointer;
+      box-shadow: 0 0 0 1px #cbd5e1; transition: transform .15s, box-shadow .15s;
+    }
+    .color.active { transform: scale(1.12); box-shadow: 0 0 0 3px #c4b5fd; }
+    .explanation { color: white; background: var(--slate-900); }
+    .explanation p { color: #cbd5e1; font-size: 14px; line-height: 1.6; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+    .stat { padding: 13px; border-radius: 16px; background: rgba(255,255,255,.09); }
+    .stat small { display: block; color: #94a3b8; }
+    .stat strong { display: block; margin-top: 3px; color: #c4b5fd; font-size: 25px; }
+    .formula { padding: 13px; border-radius: 16px; background: rgba(124,58,237,.18); color: #ddd6fe; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .stage { height: 52vh; }
+    }
+    @media (max-width: 600px) {
+      .app { padding: 14px; }
+      .drawing-card { padding: 10px; }
+      .stage { min-height: 370px; }
+      .toggle { width: 100%; margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="logo">✦</div>
+      <div>
+        <h1>Espirógrafo interactivo</h1>
+        <p>Configura el mecanismo y pulsa Iniciar para comenzar.</p>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="card drawing-card">
+        <div class="stage" id="stage">
+          <canvas id="canvas"></canvas>
+          <div class="legend">
+            <div><span class="dot" style="background:#ef4444"></span>Punto dibujante</div>
+            <div><span class="dot" style="background:#facc15"></span>Rueda móvil</div>
+          </div>
+          <div class="hint" id="hint"><span>Pulsa Iniciar para dibujar</span></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="play">▶ Iniciar</button>
+          <button class="btn" id="reset">↻ Reiniciar</button>
+          <button class="btn" id="random">✦ Sorpréndeme</button>
+          <label class="toggle"><input id="mechanism" type="checkbox" checked> Ver mecanismo</label>
+        </div>
+        <div class="progress"><div id="progressBar"></div></div>
+      </section>
+
+      <aside class="sidebar">
+        <section class="card controls">
+          <h2>Controles</h2>
+          <p class="sub">Cambia una variable y compara el resultado.</p>
+
+          <div class="control">
+            <div class="control-head"><div><div class="control-title">Rueda fija (R)</div><div class="help">Diámetro del círculo exterior</div></div><span class="value" id="RValue">170</span></div>
+            <input id="R" type="range" min="120" max="220" step="1" value="170">
+          </div>
+          <div class="control">
+            <div class="control-head"><div><div class="control-title">Rueda móvil (r)</div><div class="help">Diámetro de la rueda móvil</div></div><span class="value" id="rValue">65</span></div>
+            <input id="r" type="range" min="30" max="110" step="1" value="65">
+          </div>
+          <div class="control">
+            <div class="control-head"><div><div class="control-title">Posición del lápiz (d)</div><div class="help">Distancia al centro de la rueda móvil</div></div><span class="value" id="dValue">85</span></div>
+            <input id="d" type="range" min="0" max="120" step="1" value="85">
+          </div>
+          <div class="control">
+            <div class="control-head"><div><div class="control-title">Velocidad</div><div class="help">Velocidad del giro</div></div><span class="value" id="speedValue">1×</span></div>
+            <input id="speed" type="range" min="0" max="5" step="1" value="1">
+            <div class="speed-marks"><span>0.5×</span><span>1×</span><span>1.5×</span><span>2×</span><span>2.5×</span><span>3×</span></div>
+          </div>
+          <div class="control">
+            <div class="control-title">Color del trazo</div>
+            <div class="colors" id="colors"></div>
+          </div>
+        </section>
+
+        <section class="card explanation">
+          <h2>ⓘ ¿Qué está pasando?</h2>
+          <p>La rueda amarilla gira dentro del círculo fijo. El punto rojo está unido a esa rueda y deja un trazo mientras gira.</p>
+          <div class="stats">
+            <div class="stat"><small>Vueltas al círculo</small><strong id="turns">13</strong></div>
+            <div class="stat"><small>Giros de la rueda</small><strong id="lobes">34</strong></div>
+          </div>
+          <p>El dibujo es una <strong>hipotrocoide</strong>. A 1× tarda aproximadamente 25 segundos en completarse.</p>
+          <div class="formula">x = (R-r) cos t + d cos((R-r)t/r)<br>y = (R-r) sin t - d sin((R-r)t/r)</div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+<script>
+(() => {
+  const COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#059669"];
+  const SPEED_OPTIONS = [0.5, 1, 1.5, 2, 2.5, 3];
+  const BASE_DURATION = 25000;
+
+  const canvas = document.getElementById("canvas");
+  const stage = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+  const controls = {
+    R: document.getElementById("R"), r: document.getElementById("r"), d: document.getElementById("d"),
+    speed: document.getElementById("speed"), mechanism: document.getElementById("mechanism")
+  };
+  const playBtn = document.getElementById("play");
+  const resetBtn = document.getElementById("reset");
+  const randomBtn = document.getElementById("random");
+  const hint = document.getElementById("hint");
+  const progressBar = document.getElementById("progressBar");
+
+  let state = { R: 170, r: 65, d: 85, speed: 1, color: COLORS[1], showMechanism: true, playing: false, progress: 0 };
+  let startTime = null;
+  let animationFrame = null;
+
+  const gcd = (a, b) => { a = Math.abs(Math.round(a)); b = Math.abs(Math.round(b)); while (b) [a, b] = [b, a % b]; return a || 1; };
+  const pointAt = (t) => ({
+    x: (state.R - state.r) * Math.cos(t) + state.d * Math.cos(((state.R - state.r) / state.r) * t),
+    y: (state.R - state.r) * Math.sin(t) - state.d * Math.sin(((state.R - state.r) / state.r) * t)
+  });
+
+  function resize() {
+    const rect = stage.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    draw();
+  }
+
+  function draw() {
+    const width = stage.clientWidth, height = stage.clientHeight;
+    ctx.clearRect(0, 0, width, height);
+    const cx = width / 2, cy = height / 2;
+    const scale = Math.min(width, height) / (2 * (state.R + state.d + 24));
+    const turns = state.r / gcd(state.R, state.r);
+    const maxT = Math.PI * 2 * turns;
+    const endT = maxT * state.progress;
+
+    ctx.beginPath(); ctx.arc(cx, cy, state.R * scale, 0, Math.PI * 2);
+    ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 2; ctx.stroke();
+
+    if (state.progress > 0) {
+      const samples = Math.max(2, Math.floor(2400 * state.progress));
+      ctx.beginPath();
+      for (let i = 0; i <= samples; i++) {
+        const p = pointAt(endT * i / samples);
+        const x = cx + p.x * scale, y = cy + p.y * scale;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = state.color; ctx.lineWidth = 2.4; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
+    }
+
+    if (state.showMechanism) {
+      const p = pointAt(endT);
+      const wx = cx + (state.R - state.r) * Math.cos(endT) * scale;
+      const wy = cy + (state.R - state.r) * Math.sin(endT) * scale;
+      const px = cx + p.x * scale, py = cy + p.y * scale;
+      ctx.beginPath(); ctx.arc(wx, wy, state.r * scale, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(250,204,21,.18)"; ctx.fill(); ctx.strokeStyle = "#eab308"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(wx, wy); ctx.lineTo(px, py); ctx.strokeStyle = "#64748b"; ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(px, py, 5.5, 0, Math.PI * 2); ctx.fillStyle = "#ef4444"; ctx.fill(); ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+    }
+    progressBar.style.width = (state.progress * 100) + "%";
+  }
+
+  function updateInfo() {
+    document.getElementById("RValue").textContent = state.R;
+    document.getElementById("rValue").textContent = state.r;
+    document.getElementById("dValue").textContent = state.d;
+    document.getElementById("speedValue").textContent = state.speed + "×";
+    document.getElementById("turns").textContent = state.r / gcd(state.R, state.r);
+    document.getElementById("lobes").textContent = state.R / gcd(state.R, state.r);
+    hint.style.display = (!state.playing && state.progress === 0) ? "flex" : "none";
+    playBtn.textContent = state.playing ? "❚❚ Pausar" : state.progress >= 1 ? "▶ Repetir" : state.progress > 0 ? "▶ Continuar" : "▶ Iniciar";
+    [...document.querySelectorAll(".color")].forEach((el, i) => el.classList.toggle("active", COLORS[i] === state.color));
+  }
+
+  function stopAndClear() {
+    state.playing = false; state.progress = 0; startTime = null;
+    if (animationFrame) cancelAnimationFrame(animationFrame);
+    draw(); updateInfo();
+  }
+
+  function animate(now) {
+    if (!state.playing) return;
+    if (startTime === null) startTime = now - state.progress * BASE_DURATION / state.speed;
+    state.progress = Math.min(1, (now - startTime) * state.speed / BASE_DURATION);
+    draw(); updateInfo();
+    if (state.progress >= 1) { state.playing = false; startTime = null; updateInfo(); return; }
+    animationFrame = requestAnimationFrame(animate);
+  }
+
+  playBtn.addEventListener("click", () => {
+    if (state.playing) { state.playing = false; startTime = null; if (animationFrame) cancelAnimationFrame(animationFrame); updateInfo(); return; }
+    if (state.progress >= 1) state.progress = 0;
+    state.playing = true; startTime = null; updateInfo(); animationFrame = requestAnimationFrame(animate);
+  });
+  resetBtn.addEventListener("click", stopAndClear);
+  randomBtn.addEventListener("click", () => {
+    const wheels = [35,40,45,50,55,60,65,70,75,80,85];
+    state.r = wheels[Math.floor(Math.random() * wheels.length)];
+    state.R = 140 + Math.floor(Math.random() * 5) * 10;
+    state.d = Math.min(110, 20 + Math.floor(Math.random() * 10) * 10);
+    state.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    controls.R.value = state.R; controls.r.value = state.r; controls.d.value = state.d;
+    stopAndClear();
+  });
+
+  ["R", "r", "d"].forEach(key => controls[key].addEventListener("input", e => { state[key] = Number(e.target.value); stopAndClear(); }));
+  controls.speed.addEventListener("input", e => {
+    state.speed = SPEED_OPTIONS[Number(e.target.value)];
+    if (state.playing) startTime = null;
+    updateInfo();
+  });
+  controls.mechanism.addEventListener("change", e => { state.showMechanism = e.target.checked; draw(); });
+
+  const colorsBox = document.getElementById("colors");
+  COLORS.forEach(color => {
+    const button = document.createElement("button");
+    button.className = "color"; button.style.background = color; button.setAttribute("aria-label", "Elegir color " + color);
+    button.addEventListener("click", () => { state.color = color; draw(); updateInfo(); });
+    colorsBox.appendChild(button);
+  });
+
+  window.addEventListener("resize", resize);
+  updateInfo(); resize();
+})();
+</script>
+</body>
+</html>
