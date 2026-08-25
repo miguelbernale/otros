@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>¡Juego de Subitización Fantástico!</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts para estilo infantil -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            fredoka: ['Fredoka', 'sans-serif'],
+            quicksand: ['Quicksand', 'sans-serif'],
+          },
+          colors: {
+            brandYellow: '#FFD166',
+            brandPink: '#FF6B6B',
+            brandGreen: '#06D6A0',
+            brandBlue: '#118AB2',
+            brandPurple: '#8338EC',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Fredoka', sans-serif;
+      background: linear-gradient(135deg, #e0f2fe 0%, #fef3c7 50%, #fbcfe8 100%);
+      min-height: 100vh;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Animaciones para las Puertas */
+    .door-container {
+      perspective: 1200px;
+    }
+    .door-left, .door-right {
+      transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+    }
+    .doors-open .door-left {
+      transform: rotateY(-115deg);
+    }
+    .doors-open .door-right {
+      transform: rotateY(115deg);
+    }
+
+    /* Animación de vibración para errores */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+    .animate-shake {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    /* Animación de brinco de celebración */
+    @keyframes bounce-up {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-12px) scale(1.05); }
+    }
+    .animate-bounce-custom {
+      animation: bounce-up 0.6s ease-in-out infinite alternate;
+    }
+
+    /* Fichas con pulso suave */
+    .token-pop {
+      animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popIn {
+      0% { transform: scale(0); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Sombra divertida de botones */
+    .btn-3d {
+      box-shadow: 0px 6px 0px rgba(0,0,0,0.18);
+      transition: all 0.15s ease;
+    }
+    .btn-3d:active:not(:disabled) {
+      transform: translateY(4px);
+      box-shadow: 0px 2px 0px rgba(0,0,0,0.18);
+    }
+
+    /* Canvas de confeti flotante */
+    #confettiCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-between p-3 md:p-6 text-slate-800 min-h-screen">
+  
+  <canvas id="confettiCanvas"></canvas>
+
+  <header class="w-full max-w-2xl bg-white/85 backdrop-blur-md rounded-3xl p-4 shadow-xl border-4 border-white mb-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      
+      <!-- Nivel -->
+      <div class="flex items-center gap-2 bg-amber-100 border-2 border-amber-300 px-3 py-1.5 rounded-2xl">
+        <span class="text-2xl">🏆</span>
+        <div>
+          <span class="text-[10px] font-bold text-amber-700 uppercase tracking-wide block leading-none">Nivel</span>
+          <span id="levelBadge" class="text-base md:text-lg font-bold text-amber-900">1: Semillita 🌱</span>
+        </div>
+      </div>
+
+      <!-- Racha (Streak) -->
+      <div class="flex items-center gap-2 bg-rose-100 border-2 border-rose-300 px-4 py-1.5 rounded-2xl">
+        <span class="text-2xl md:text-3xl animate-pulse">⭐</span>
+        <div>
+          <span class="text-[10px] font-bold text-rose-700 uppercase tracking-wide block leading-none">Racha</span>
+          <div class="flex items-center gap-1">
+            <span id="streakCount" class="text-xl md:text-2xl font-black text-rose-600">0</span>
+            <span class="text-rose-500 font-bold text-xs md:text-sm">estrellas</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ajustes rápidos -->
+      <div class="flex items-center gap-2">
+        <button id="soundToggleBtn" onclick="toggleSound()" class="p-2.5 bg-sky-100 hover:bg-sky-200 border-2 border-sky-300 rounded-2xl text-xl btn-3d" title="Sonido y Voz">
+          🔊
+        </button>
+        <button onclick="openSettingsModal()" class="p-2.5 bg-purple-100 hover:bg-purple-200 border-2 border-purple-300 rounded-2xl text-xl btn-3d" title="Ajustes">
+          ⚙️
+        </button>
+      </div>
+    </div>
+
+    <!-- Barra de progreso para subir de nivel -->
+    <div class="mt-3 w-full bg-slate-200 h-4 rounded-full overflow-hidden border border-slate-300 relative">
+      <div id="progressBar" class="h-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-500 w-0"></div>
+      <span id="progressText" class="absolute inset-0 text-[10px] font-bold text-slate-700 flex items-center justify-center uppercase tracking-wider">0 / 3 para subir de nivel</span>
+    </div>
+  </header>
+
+  <main class="w-full max-w-2xl flex flex-col items-center my-auto">
+    
+    <!-- Banner de Mensaje / Instrucciones -->
+    <div id="messageBanner" class="w-full text-center py-2.5 px-4 rounded-2xl font-bold text-lg md:text-xl shadow-md transition-all duration-300 mb-3 bg-white/90 border-2 border-sky-200 text-sky-800">
+      ✨ ¡Toca <span class="text-emerald-600 font-black">"¡ABRIR PUERTA!"</span> para mirar las fichas! ✨
+    </div>
+
+    <!-- Contenedor del Escenario y Puertas -->
+    <div class="relative w-full aspect-[16/9] max-h-[310px] bg-sky-900 rounded-3xl p-3 border-8 border-amber-800 shadow-2xl door-container overflow-hidden flex items-center justify-center">
+      
+      <!-- Fondo Interior: Tablero de Diez Casillas (Ten-Frame) -->
+      <div class="w-full h-full bg-amber-100/90 rounded-2xl border-4 border-amber-700/40 p-3 flex flex-col justify-between shadow-inner relative">
+        
+        <!-- Indicador de conteo de ayuda cuando falla -->
+        <div id="countingHelpOverlay" class="hidden absolute top-2 right-2 bg-amber-300 text-amber-900 font-bold text-xs px-3 py-1 rounded-full z-10 animate-bounce shadow">
+          💡 Tocá las fichas para contar
+        </div>
+
+        <!-- Matriz de 10 casillas (2 filas x 5 columnas) -->
+        <div id="tenFrameGrid" class="grid grid-cols-5 grid-rows-2 gap-2 md:gap-3 w-full h-full">
+          <!-- Generado dinámicamente -->
+        </div>
+      </div>
+
+      <!-- PUERTAS MAGICAS ANIMADAS -->
+      <div id="doorsWrapper" class="absolute inset-0 flex z-20 transition-all duration-500 pointer-events-none">
+        <!-- Puerta Izquierda -->
+        <div class="door-left w-1/2 h-full bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 border-r-4 border-amber-950 flex flex-col items-end justify-center pr-3 shadow-2xl origin-left relative">
+          <div class="w-6 h-12 bg-yellow-500 border-2 border-yellow-700 rounded-full shadow-lg my-auto mr-1 flex items-center justify-center">
+            <div class="w-2 h-2 bg-amber-900 rounded-full"></div>
+          </div>
+          <div class="absolute inset-2 border-2 border-amber-600/30 rounded-l-xl"></div>
+          <span class="absolute text-5xl opacity-20 left-4 top-4">⭐</span>
+        </div>
+        
+        <!-- Puerta Derecha -->
+        <div class="door-right w-1/2 h-full bg-gradient-to-l from-amber-700 via-amber-800 to-amber-900 border-l-4 border-amber-950 flex flex-col items-start justify-center pl-3 shadow-2xl origin-right relative">
+          <div class="w-6 h-12 bg-yellow-500 border-2 border-yellow-700 rounded-full shadow-lg my-auto ml-1 flex items-center justify-center">
+            <div class="w-2 h-2 bg-amber-900 rounded-full"></div>
+          </div>
+          <div class="absolute inset-2 border-2 border-amber-600/30 rounded-r-xl"></div>
+          <span class="absolute text-5xl opacity-20 right-4 bottom-4">🎈</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Temporizador visual de exposición -->
+    <div class="w-full max-w-md h-3 bg-slate-200/80 rounded-full mt-3 overflow-hidden border border-slate-300">
+      <div id="peekTimerBar" class="h-full bg-amber-400 w-0 transition-all linear"></div>
+    </div>
+
+    <!-- Botón Principal de Acción -->
+    <div class="mt-3 w-full flex justify-center">
+      <button id="actionBtn" onclick="handleMainAction()" class="w-full max-w-md py-3.5 px-6 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xl md:text-2xl rounded-3xl border-b-4 border-emerald-700 shadow-lg btn-3d flex items-center justify-center gap-3 animate-bounce">
+        <span>🚪</span>
+        <span id="actionBtnText">¡ABRIR PUERTA!</span>
+      </button>
+    </div>
+
+    <!-- Teclado Numérico Infantil (Respuestas del 1 al 10) -->
+    <div class="w-full mt-4 bg-white/80 backdrop-blur-md p-3.5 rounded-3xl border-4 border-white shadow-xl">
+      <p id="keypadTitle" class="text-center font-bold text-slate-600 mb-2 text-xs md:text-sm uppercase tracking-wide">
+        ¿Cuántas fichas viste dentro?
+      </p>
+
+      <div class="grid grid-cols-5 gap-2 md:gap-3">
+        <!-- Botones 1 al 10 -->
+        <button onclick="submitAnswer(1)" class="num-btn btn-3d py-3 md:py-4 bg-rose-500 hover:bg-rose-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-rose-700 opacity-50 cursor-not-allowed" disabled>1</button>
+        <button onclick="submitAnswer(2)" class="num-btn btn-3d py-3 md:py-4 bg-orange-500 hover:bg-orange-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-orange-700 opacity-50 cursor-not-allowed" disabled>2</button>
+        <button onclick="submitAnswer(3)" class="num-btn btn-3d py-3 md:py-4 bg-amber-500 hover:bg-amber-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-amber-700 opacity-50 cursor-not-allowed" disabled>3</button>
+        <button onclick="submitAnswer(4)" class="num-btn btn-3d py-3 md:py-4 bg-lime-500 hover:bg-lime-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-lime-700 opacity-50 cursor-not-allowed" disabled>4</button>
+        <button onclick="submitAnswer(5)" class="num-btn btn-3d py-3 md:py-4 bg-emerald-500 hover:bg-emerald-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-emerald-700 opacity-50 cursor-not-allowed" disabled>5</button>
+        <button onclick="submitAnswer(6)" class="num-btn btn-3d py-3 md:py-4 bg-teal-500 hover:bg-teal-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-teal-700 opacity-50 cursor-not-allowed" disabled>6</button>
+        <button onclick="submitAnswer(7)" class="num-btn btn-3d py-3 md:py-4 bg-sky-500 hover:bg-sky-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-sky-700 opacity-50 cursor-not-allowed" disabled>7</button>
+        <button onclick="submitAnswer(8)" class="num-btn btn-3d py-3 md:py-4 bg-indigo-500 hover:bg-indigo-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-indigo-700 opacity-50 cursor-not-allowed" disabled>8</button>
+        <button onclick="submitAnswer(9)" class="num-btn btn-3d py-3 md:py-4 bg-purple-500 hover:bg-purple-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-purple-700 opacity-50 cursor-not-allowed" disabled>9</button>
+        <button onclick="submitAnswer(10)" class="num-btn btn-3d py-3 md:py-4 bg-pink-500 hover:bg-pink-400 text-white text-2xl md:text-3xl font-black rounded-2xl border-b-4 border-pink-700 opacity-50 cursor-not-allowed" disabled>10</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL DE CONFIGURACIÓN Y VELOCIDAD -->
+  <div id="settingsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl p-6 max-w-md w-full border-4 border-purple-300 shadow-2xl relative">
+      <h3 class="text-2xl font-black text-purple-900 mb-4 text-center">⚙️ Ajustes del Juego</h3>
+      
+      <!-- Selector de Velocidad -->
+      <div class="mb-5">
+        <label class="block font-bold text-slate-700 mb-2">⏱️ Tiempo de vistazo (Velocidad):</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="setSpeed(2500, 'Lento')" id="speedSlow" class="py-2.5 px-2 rounded-2xl border-2 font-bold text-xs md:text-sm btn-3d">🐢 Lento (2.5s)</button>
+          <button onclick="setSpeed(1700, 'Normal')" id="speedNormal" class="py-2.5 px-2 rounded-2xl border-2 font-bold text-xs md:text-sm btn-3d bg-purple-500 text-white border-purple-700">🐰 Normal (1.7s)</button>
+          <button onclick="setSpeed(900, 'Rápido')" id="speedFast" class="py-2.5 px-2 rounded-2xl border-2 font-bold text-xs md:text-sm btn-3d">⚡ Rápido (0.9s)</button>
+        </div>
+      </div>
+
+      <!-- Selector de Tipo de Ficha -->
+      <div class="mb-5">
+        <label class="block font-bold text-slate-700 mb-2">🎨 Tipo de Ficha:</label>
+        <div class="grid grid-cols-4 gap-2 text-2xl">
+          <button onclick="setTokenType('⭐')" class="p-2.5 bg-amber-100 border-2 border-amber-300 rounded-2xl btn-3d text-center">⭐</button>
+          <button onclick="setTokenType('🍎')" class="p-2.5 bg-rose-100 border-2 border-rose-300 rounded-2xl btn-3d text-center">🍎</button>
+          <button onclick="setTokenType('👾')" class="p-2.5 bg-purple-100 border-2 border-purple-300 rounded-2xl btn-3d text-center">👾</button>
+          <button onclick="setTokenType('🟡')" class="p-2.5 bg-yellow-100 border-2 border-yellow-300 rounded-2xl btn-3d text-center">🟡</button>
+        </div>
+      </div>
+
+      <!-- Selector manual de Nivel -->
+      <div class="mb-6">
+        <label class="block font-bold text-slate-700 mb-2">🎯 Forzar Nivel de Dificultad:</label>
+        <select id="levelSelect" onchange="changeLevelManual(this.value)" class="w-full p-3 bg-slate-100 border-2 border-slate-300 rounded-2xl font-bold text-slate-800">
+          <option value="1">Nivel 1: 1 a 3 fichas (Ordenadas)</option>
+          <option value="2">Nivel 2: 1 a 5 fichas (Llenado Fila)</option>
+          <option value="3">Nivel 3: 5 a 10 fichas (Estructurado 5+N)</option>
+          <option value="4">Nivel 4: 3 a 7 fichas (Desordenadas)</option>
+          <option value="5">Nivel 5: 4 a 10 fichas (Desordenadas y Veloz)</option>
+        </select>
+      </div>
+
+      <button onclick="closeSettingsModal()" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-lg rounded-2xl border-b-4 border-emerald-700 btn-3d">
+        ¡LISTO PARA JUGAR! 👍
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /* ===================================================
+       SINTETIZADOR DE AUDIO Y VOZ (Web Audio & Speech API)
+       =================================================== */
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      const btn = document.getElementById('soundToggleBtn');
+      btn.innerText = soundEnabled ? '🔊' : '🔇';
+      btn.classList.toggle('bg-slate-200', !soundEnabled);
+      if (!soundEnabled && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    function speakText(text) {
+      if (!soundEnabled || !('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel(); // Detener locución previa
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'es-ES';
+        utterance.rate = 0.95; // Un poco más pausado para niños
+        utterance.pitch = 1.1; // Tono amigable
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function playSound(type) {
+      if (!soundEnabled) return;
+      initAudio();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      const now = audioCtx.currentTime;
+
+      if (type === 'open') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(520, now + 0.3);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      } else if (type === 'close') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.25);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } else if (type === 'correct') {
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.2, now + i * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.25);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + i * 0.08);
+          osc.stop(now + i * 0.08 + 0.25);
+        });
+      } else if (type === 'wrong') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(280, now);
+        osc.frequency.linearRampToValueAtTime(180, now + 0.35);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      } else if (type === 'levelup') {
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((freq, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.25, now + i * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.4);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + i * 0.1);
+          osc.stop(now + i * 0.1 + 0.4);
+        });
+      } else if (type === 'pop') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(900, now + 0.08);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      }
+    }
+
+    /* ===================================================
+       ESTADO DEL JUEGO Y LÓGICA PEDAGÓGICA DE SUBITIZACIÓN
+       =================================================== */
+    let currentLevel = 1;
+    let streak = 0;
+    let levelProgress = 0;
+    const WINS_TO_LEVEL_UP = 3;
+    
+    let targetNumber = 0;
+    let activePositions = []; 
+    let gameStage = 'READY'; // 'READY', 'PEEKING', 'WAITING_ANSWER', 'VERIFYING'
+    let exposureTimeMs = 1700; 
+    let currentTokenType = '⭐';
+    let peekTimeoutId = null;
+
+    const LEVEL_CONFIGS = {
+      1: { name: '1: Semillita 🌱', min: 1, max: 3, ordered: true },
+      2: { name: '2: Explorador 🔍', min: 1, max: 5, ordered: true },
+      3: { name: '3: Campeón 🏅', min: 5, max: 10, structured: true },
+      4: { name: '4: Desafío 🎲', min: 3, max: 7, ordered: false },
+      5: { name: '5: Maestro Veloz ⚡', min: 4, max: 10, ordered: false }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderTenFrameGrid();
+      updateUI();
+      initConfetti();
+    });
+
+    function renderTenFrameGrid() {
+      const grid = document.getElementById('tenFrameGrid');
+      grid.innerHTML = '';
+      for (let i = 0; i < 10; i++) {
+        const cell = document.createElement('div');
+        cell.className = `cell-box relative bg-white/70 border-3 border-amber-400/60 rounded-xl flex items-center justify-center shadow-inner overflow-hidden transition-all duration-200`;
+        cell.dataset.index = i;
+        grid.appendChild(cell);
+      }
+    }
+
+    function generateSubitizationPattern() {
+      const config = LEVEL_CONFIGS[currentLevel];
+      
+      targetNumber = Math.floor(Math.random() * (config.max - config.min + 1)) + config.min;
+      activePositions = [];
+
+      if (config.ordered) {
+        for (let i = 0; i < targetNumber; i++) {
+          activePositions.push(i);
+        }
+      } else if (config.structured) {
+        for (let i = 0; i < 5; i++) activePositions.push(i);
+        const remainder = targetNumber - 5;
+        for (let i = 0; i < remainder; i++) activePositions.push(5 + i);
+      } else {
+        const pool = Array.from({length: 10}, (_, i) => i);
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        activePositions = pool.slice(0, targetNumber);
+      }
+
+      const cells = document.querySelectorAll('.cell-box');
+      cells.forEach((cell, idx) => {
+        cell.innerHTML = '';
+        if (activePositions.includes(idx)) {
+          const token = document.createElement('div');
+          token.className = 'w-full h-full flex items-center justify-center text-3xl md:text-4xl token-pop cursor-pointer select-none';
+          token.innerHTML = `<span>${currentTokenType}</span>`;
+          
+          token.onclick = (e) => {
+            if (gameStage === 'VERIFYING') {
+              e.stopPropagation();
+              playSound('pop');
+              showTokenBadge(token);
+            }
+          };
+          cell.appendChild(token);
+        }
+      });
+    }
+
+    let tokenTapCount = 0;
+    function showTokenBadge(tokenEl) {
+      if (tokenEl.querySelector('.count-badge')) return;
+      tokenTapCount++;
+      const badge = document.createElement('span');
+      badge.className = 'count-badge absolute inset-0 bg-emerald-500/90 text-white font-black text-xl flex items-center justify-center rounded-xl animate-bounce';
+      badge.innerText = tokenTapCount;
+      tokenEl.appendChild(badge);
+    }
+
+    /* ===================================================
+       CONTROL DEL FLUJO Y TRANSICIONES SIN BLOQUEO
+       =================================================== */
+
+    function handleMainAction() {
+      initAudio();
+      if (gameStage === 'PEEKING' || gameStage === 'WAITING_ANSWER') return;
+      startRound();
+    }
+
+    function startRound() {
+      if (peekTimeoutId) clearTimeout(peekTimeoutId);
+      tokenTapCount = 0;
+      document.getElementById('countingHelpOverlay').classList.add('hidden');
+
+      const actionBtn = document.getElementById('actionBtn');
+      actionBtn.classList.remove('animate-bounce');
+      
+      const doorsWrapper = document.getElementById('doorsWrapper');
+      
+      // Si las puertas están abiertas (por verificación previa), cerrarlas primero
+      if (doorsWrapper.classList.contains('doors-open')) {
+        doorsWrapper.classList.remove('doors-open');
+        playSound('close');
+        
+        actionBtn.disabled = true;
+        actionBtn.classList.add('opacity-60');
+        document.getElementById('actionBtnText').innerText = 'PREPARANDO...';
+        updateMessage('🚪 Cerrando puertas...', 'amber');
+
+        // Esperar la animación de cierre antes de mostrar la nueva ronda
+        setTimeout(() => {
+          beginPeekPhase();
+        }, 450);
+      } else {
+        beginPeekPhase();
+      }
+    }
+
+    function beginPeekPhase() {
+      generateSubitizationPattern();
+      
+      gameStage = 'PEEKING';
+      setKeypadEnabled(false);
+      
+      const actionBtn = document.getElementById('actionBtn');
+      actionBtn.disabled = true;
+      actionBtn.classList.add('opacity-60');
+      document.getElementById('actionBtnText').innerText = '👀 ¡MIRA ATENTAMENTE!';
+
+      // Abrir Puertas
+      const doorsWrapper = document.getElementById('doorsWrapper');
+      doorsWrapper.classList.add('doors-open');
+      playSound('open');
+
+      updateMessage('👀 ¡Mira con atención! ¿Cuántas hay?', 'sky');
+      speakText('¡Mira con atención!');
+      
+      // Barra de tiempo
+      const peekTime = (currentLevel === 5) ? Math.min(exposureTimeMs, 1000) : exposureTimeMs;
+      const timerBar = document.getElementById('peekTimerBar');
+      timerBar.style.transition = 'none';
+      timerBar.style.width = '100%';
+
+      setTimeout(() => {
+        timerBar.style.transition = `width ${peekTime}ms linear`;
+        timerBar.style.width = '0%';
+      }, 40);
+
+      // Programar Cierre
+      peekTimeoutId = setTimeout(() => {
+        if (gameStage === 'PEEKING') {
+          doorsWrapper.classList.remove('doors-open');
+          playSound('close');
+          
+          gameStage = 'WAITING_ANSWER';
+          setKeypadEnabled(true);
+          
+          updateMessage('🚪 Puertas cerradas. ¿Cuántas fichas habia?', 'amber');
+          speakText('¿Cuántas fichas había?');
+          
+          document.getElementById('actionBtnText').innerText = '👇 ELIGE UN NÚMERO ABAJO';
+        }
+      }, peekTime + 100);
+    }
+
+    function setKeypadEnabled(enabled) {
+      const buttons = document.querySelectorAll('.num-btn');
+      buttons.forEach(btn => {
+        btn.disabled = !enabled;
+        if (enabled) {
+          btn.classList.remove('opacity-50', 'cursor-not-allowed', 'ring-4', 'ring-emerald-400', 'ring-rose-400', 'animate-shake');
+          btn.classList.add('hover:scale-105');
+        } else {
+          btn.classList.add('opacity-50', 'cursor-not-allowed');
+          btn.classList.remove('hover:scale-105');
+        }
+      });
+    }
+
+    function submitAnswer(chosenNumber) {
+      if (gameStage !== 'WAITING_ANSWER') return;
+
+      const isCorrect = chosenNumber === targetNumber;
+      const buttons = document.querySelectorAll('.num-btn');
+      const chosenBtn = buttons[chosenNumber - 1];
+
+      setKeypadEnabled(false);
+
+      if (isCorrect) {
+        // --- RESPUESTA CORRECTA ---
+        gameStage = 'VERIFYING';
+        playSound('correct');
+        triggerConfetti();
+
+        chosenBtn.classList.add('ring-4', 'ring-emerald-400');
+        
+        streak++;
+        levelProgress++;
+        
+        updateMessage(`🎉 ¡EXCELENTE! Había exactamente ${targetNumber} fichas ⭐`, 'emerald');
+        speakText(`¡Excelente! Había ${targetNumber}`);
+
+        // Abrir puertas para mostrar verificación
+        document.getElementById('doorsWrapper').classList.add('doors-open');
+
+        if (levelProgress >= WINS_TO_LEVEL_UP) {
+          levelProgress = 0;
+          if (currentLevel < 5) {
+            currentLevel++;
+            setTimeout(() => {
+              playSound('levelup');
+              updateMessage(`🚀 ¡INCREÍBLE! Subiste al Nivel ${currentLevel}`, 'purple');
+              speakText(`¡Increíble! Subiste al Nivel ${currentLevel}`);
+            }, 600);
+          }
+        }
+
+        updateUI();
+
+        // Habilitar botón para la siguiente ronda
+        setTimeout(() => {
+          const actionBtn = document.getElementById('actionBtn');
+          actionBtn.disabled = false;
+          actionBtn.classList.remove('opacity-60');
+          actionBtn.classList.add('animate-bounce');
+          document.getElementById('actionBtnText').innerText = '➡️ ¡SIGUIENTE RONDA!';
+        }, 600);
+
+      } else {
+        // --- RESPUESTA INCORRECTA ---
+        gameStage = 'VERIFYING';
+        playSound('wrong');
+
+        chosenBtn.classList.add('ring-4', 'ring-rose-400', 'animate-shake');
+
+        const correctBtn = buttons[targetNumber - 1];
+        correctBtn.classList.add('ring-4', 'ring-emerald-400');
+
+        streak = 0;
+        levelProgress = Math.max(0, levelProgress - 1);
+        
+        updateMessage(`¡Casi! Elegiste ${chosenNumber}, pero eran ${targetNumber}. ¡Contemos juntos! 💡`, 'rose');
+        speakText(`Elegiste ${chosenNumber}, pero eran ${targetNumber}. ¡Contemos juntos!`);
+        
+        document.getElementById('doorsWrapper').classList.add('doors-open');
+        document.getElementById('countingHelpOverlay').classList.remove('hidden');
+
+        updateUI();
+
+        setTimeout(() => {
+          const actionBtn = document.getElementById('actionBtn');
+          actionBtn.disabled = false;
+          actionBtn.classList.remove('opacity-60');
+          actionBtn.classList.add('animate-bounce');
+          document.getElementById('actionBtnText').innerText = '🔄 ¡INTENTAR OTRA VEZ!';
+        }, 800);
+      }
+    }
+
+    function updateMessage(text, colorTheme) {
+      const banner = document.getElementById('messageBanner');
+      banner.innerText = text;
+      banner.className = `w-full text-center py-2.5 px-4 rounded-2xl font-bold text-base md:text-xl shadow-md transition-all duration-300 mb-3 border-2`;
+
+      if (colorTheme === 'emerald') {
+        banner.classList.add('bg-emerald-100', 'border-emerald-300', 'text-emerald-900', 'animate-bounce-custom');
+      } else if (colorTheme === 'rose') {
+        banner.classList.add('bg-rose-100', 'border-rose-300', 'text-rose-900');
+      } else if (colorTheme === 'purple') {
+        banner.classList.add('bg-purple-100', 'border-purple-300', 'text-purple-900');
+      } else if (colorTheme === 'amber') {
+        banner.classList.add('bg-amber-100', 'border-amber-300', 'text-amber-900');
+      } else {
+        banner.classList.add('bg-white/90', 'border-sky-200', 'text-sky-800');
+      }
+    }
+
+    function updateUI() {
+      document.getElementById('streakCount').innerText = streak;
+      const lvlInfo = LEVEL_CONFIGS[currentLevel];
+      document.getElementById('levelBadge').innerText = lvlInfo.name;
+
+      const pct = (levelProgress / WINS_TO_LEVEL_UP) * 100;
+      document.getElementById('progressBar').style.width = `${pct}%`;
+      document.getElementById('progressText').innerText = `${levelProgress} / ${WINS_TO_LEVEL_UP} para subir de nivel`;
+      
+      document.getElementById('levelSelect').value = currentLevel;
+    }
+
+    function openSettingsModal() {
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function setSpeed(ms, label) {
+      exposureTimeMs = ms;
+      ['speedSlow', 'speedNormal', 'speedFast'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.className = 'py-2.5 px-2 rounded-2xl border-2 font-bold text-xs md:text-sm btn-3d bg-white border-slate-300 text-slate-700';
+      });
+
+      let activeId = 'speedNormal';
+      if (ms === 2500) activeId = 'speedSlow';
+      if (ms === 900) activeId = 'speedFast';
+
+      const activeBtn = document.getElementById(activeId);
+      activeBtn.className = 'py-2.5 px-2 rounded-2xl border-2 font-bold text-xs md:text-sm btn-3d bg-purple-500 text-white border-purple-700';
+    }
+
+    function setTokenType(symbol) {
+      currentTokenType = symbol;
+      generateSubitizationPattern();
+    }
+
+    function changeLevelManual(val) {
+      currentLevel = parseInt(val, 10);
+      levelProgress = 0;
+      updateUI();
+    }
+
+    // EFECTO DE CONFETI EN CANVAS
+    let confettiParticles = [];
+    let confettiCanvas, confettiCtx;
+
+    function initConfetti() {
+      confettiCanvas = document.getElementById('confettiCanvas');
+      confettiCtx = confettiCanvas.getContext('2d');
+      resizeConfettiCanvas();
+      window.addEventListener('resize', resizeConfettiCanvas);
+    }
+
+    function resizeConfettiCanvas() {
+      confettiCanvas.width = window.innerWidth;
+      confettiCanvas.height = window.innerHeight;
+    }
+
+    function triggerConfetti() {
+      const colors = ['#FFD166', '#FF6B6B', '#06D6A0', '#118AB2', '#8338EC'];
+      for (let i = 0; i < 35; i++) {
+        confettiParticles.push({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2,
+          vx: (Math.random() - 0.5) * 12,
+          vy: (Math.random() - 0.8) * 12,
+          size: Math.random() * 8 + 6,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rotation: Math.random() * 360,
+          vRot: (Math.random() - 0.5) * 10,
+          life: 1
+        });
+      }
+      requestAnimationFrame(updateConfetti);
+    }
+
+    function updateConfetti() {
+      confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+      
+      confettiParticles.forEach((p, index) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.3;
+        p.rotation += p.vRot;
+        p.life -= 0.025;
+
+        confettiCtx.save();
+        confettiCtx.translate(p.x, p.y);
+        confettiCtx.rotate((p.rotation * Math.PI) / 180);
+        confettiCtx.fillStyle = p.color;
+        confettiCtx.globalAlpha = Math.max(0, p.life);
+        confettiCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        confettiCtx.restore();
+
+        if (p.life <= 0) {
+          confettiParticles.splice(index, 1);
+        }
+      });
+
+      if (confettiParticles.length > 0) {
+        requestAnimationFrame(updateConfetti);
+      }
+    }
+  </script>
+</body>
+</html>
